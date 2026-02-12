@@ -17,12 +17,33 @@ Modern cities suffer from traffic congestion because decisions are made based on
 
 ### Key Features
 
-✅ **Spatiotemporal Graph Neural Networks** - Captures both spatial dependencies and temporal evolution  
-✅ **GPU-Accelerated Training** - Fast convergence using PyTorch and CUDA  
-✅ **Multi-horizon Forecasting** - Predict traffic 15, 30, or 60 minutes ahead  
-✅ **Real-time Inference** - Deployed model processes live traffic feeds  
-✅ **Interactive Visualizations** - Traffic heatmaps and congestion alerts  
-✅ **Production Ready** - Modular architecture, comprehensive testing, Docker support  
+✅ **Spatiotemporal Graph Neural Networks** - State-of-the-art modeling of urban traffic dynamics.  
+✅ **Interactive Real-Time Map** - Leaflet.js-powered visualization with Los Angeles sensor integration.  
+✅ **Live Heatmap Overlay** - Dynamic congestion mapping showing predicted future traffic density.  
+✅ **GPU-Accelerated Inference** - Sub-50ms predictions powered by PyTorch and CUDA.  
+✅ **Multi-Horizon Forecasting** - Simultaneous predictions for 15, 30, and 60-minute windows.  
+✅ **Production Grade** - Dockerized stack, full test suite, and modular REST API.
+
+## 🖥️ Interactive Dashboard & Frontend
+
+This project features a high-performance, responsive web interface for real-time traffic monitoring and prediction analysis.
+
+### Features
+- **Geospatial Map Visualization**: Integrated **Leaflet.js** map displaying 207 sensor locations accurately mapped to Los Angeles highways.
+- **Dynamic Traffic Status**: Sensor markers change color based on predicted speeds (Green: >55mph, Yellow: Moderate, Red: Congestion).
+- **Predictive Heatmaps**: Uses `leaflet.heat` to generate a network-wide probability map of traffic density.
+- **Node-Specific Analytics**: Interactive **Plotly.js** charts showing:
+  - **Input History**: The last 60 minutes of real traffic data.
+  - **Predicted Future**: The ST-GNN's forecast for the next hour.
+  - **Actual Future**: Real-time comparison for model verification.
+- **One-Click Analysis**: Trigger real-time inference on random test samples to see how the model generalizes to new patterns.
+
+### Technical Stack (Frontend)
+- **Engine**: Vanilla JavaScript (ES6+) with Async/Await for non-blocking API calls.
+- **Styling**: Modern, mobile-responsive CSS with Glassmorphism effects and Inter typography.
+- **Visuals**: Leaflet.js (Maps), Plotly.js (Analytics), FontAwesome (Icons).
+
+---
 
 ## 🏗️ System Architecture
 
