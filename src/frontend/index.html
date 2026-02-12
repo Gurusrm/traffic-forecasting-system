@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traffic Forecasting Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Leaflet for Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>🚦 Traffic Forecasting System</h1>
+            <p>GPU-Accelerated Spatiotemporal Graph Neural Network</p>
+        </header>
+
+        <div class="controls">
+            <button id="getSampleBtn" class="primary-btn">Analyze Random Traffic Sample</button>
+            <div class="status" id="status">Ready</div>
+        </div>
+
+        <!-- Map Container -->
+        <div class="card full-width-card">
+            <h2>Real-Time Traffic Map (Los Angeles)</h2>
+            <div id="trafficMap"></div>
+        </div>
+
+        <div class="dashboard-grid">
+            <div class="card">
+                <h2>Sensor Traffic Speed Analysis</h2>
+                <div class="control-row">
+                    <label for="sensorSelect">Select Sensor Node (0-206):</label>
+                    <input type="number" id="sensorSelect" value="0" min="0" max="206">
+                </div>
+                <div id="lineChart"></div>
+            </div>
+
+            <div class="card">
+                <h2>Network-Wide Traffic Heatmap (Target vs Prediction)</h2>
+                <div id="heatmapChart"></div>
+            </div>
+        </div>
+
+        <footer>
+            <p>Powered by ST-GNN • METR-LA Dataset • PyTorch Geometry</p>
+        </footer>
+    </div>
+    <script src="script.js"></script>
+</body>
+
+</html>
