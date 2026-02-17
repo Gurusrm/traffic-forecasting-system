@@ -11,12 +11,40 @@ const STATUS = document.getElementById('status');
 const SAMPLE_BTN = document.getElementById('getSampleBtn');
 const SENSOR_INPUT = document.getElementById('sensorSelect');
 
+async function logError(msg) {
+    try {
+        await fetch('/log_error', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: msg, level: 'error' })
+        });
+    } catch (e) {
+        console.error("Failed to log error:", e);
+    }
+}
+
+window.addEventListener('error', (event) => {
+    const msg = `Uncaught Error: ${event.message}`;
+    STATUS.textContent = msg;
+    STATUS.style.color = "#f87171";
+    logError(`${msg} at ${event.filename}:${event.lineno}`);
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+    const msg = `Unhandled Promise Rejection: ${event.reason}`;
+    STATUS.textContent = msg;
+    STATUS.style.color = "#f87171";
+    logError(msg);
+});
+
 // Event Listeners
 SAMPLE_BTN.addEventListener('click', fetchSampleAndPredict);
 SENSOR_INPUT.addEventListener('change', updateLineChart);
 
 // Init Map on Load
 document.addEventListener('DOMContentLoaded', async () => {
+    STATUS.textContent = "Connecting to server...";
+    STATUS.style.color = "#facc15"; // Yellow
     initMap();
     await fetchLocations();
 });
@@ -34,7 +62,12 @@ function initMap() {
 
     // Layer Groups
     markersLayer = L.layerGroup().addTo(map);
-    heatLayer = L.heatLayer([], { radius: 25, blur: 15, maxZoom: 13 });
+    if (typeof L.heatLayer === 'function') {
+        heatLayer = L.heatLayer([], { radius: 25, blur: 15, maxZoom: 13 }).addTo(map);
+    } else {
+        console.error("L.heatLayer is not defined. Check internet connection or CDN.");
+        logError("L.heatLayer missing (CDN issue?)");
+    }
 
     // Controls
     const overlayMaps = {
@@ -68,13 +101,17 @@ async function fetchLocations() {
                 updateLineChart();
             });
 
-            markers.push(marker);
             markersLayer.addLayer(marker);
         });
 
+        STATUS.textContent = "System Ready. Connected to Dataset.";
+        STATUS.style.color = "#4ade80"; // Green
+
     } catch (err) {
         console.error("Error fetching locations:", err);
-        STATUS.textContent = "Error loading map data.";
+        STATUS.textContent = `Connection Failed: ${err.message}`;
+        STATUS.style.color = "#f87171"; // Red
+        logError(`fetchLocations setup error: ${err.message}`);
     }
 }
 
@@ -161,14 +198,30 @@ async function fetchSampleAndPredict() {
         console.error(err);
         STATUS.textContent = `Error: ${err.message}`;
         SAMPLE_BTN.disabled = false;
+        logError(`Prediction flow error: ${err.stack || err.message}`);
     }
 }
 
 function updateCharts() {
-    if (!currentData || !currentPrediction) return;
+    console.log("updateCharts called");
+    if (!currentData || !currentPrediction) {
+        console.warn("Missing data for charts", { currentData, currentPrediction });
+        return;
+    }
 
-    updateLineChart();
-    updateHeatmap();
+    try {
+        updateLineChart();
+    } catch (e) {
+        console.error("Error updating line chart:", e);
+        logError(`Line chart error: ${e.message}`);
+    }
+
+    try {
+        updateHeatmap();
+    } catch (e) {
+        console.error("Error updating heatmap:", e);
+        logError(`Heatmap error: ${e.message}`);
+    }
 }
 
 function updateLineChart() {

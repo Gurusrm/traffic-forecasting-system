@@ -110,6 +110,7 @@ header p {
     z-index: 1;
 }
 
+#lineChart,
 #heatmapChart {
     height: 400px;
     width: 100%;

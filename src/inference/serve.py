@@ -200,9 +200,25 @@ def predict(request: PredictionRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+class LogRequest(BaseModel):
+    message: str
+    level: str = "error"
+
+@app.post("/log_error")
+def log_error(request: LogRequest):
+    print(f"CLIENT_LOG [{request.level.upper()}]: {request.message}", flush=True)
+    return {"status": "ok"}
+
 # Mount frontend
 app.mount("/", StaticFiles(directory="src/frontend", html=True), name="frontend")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    import argparse
+    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--port", type=int, default=8000, help="Port to run the server on")
+    parser.add_argument("--host", type=str, default="0.0.0.0", help="Host to run the server on")
+    args = parser.parse_args()
+    
+    uvicorn.run(app, host=args.host, port=args.port)
