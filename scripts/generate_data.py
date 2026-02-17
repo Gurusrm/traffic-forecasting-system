@@ -27,7 +27,7 @@ def generate_traffic_data(
     np.random.seed(42) # Ensure graph topology matches visualization in app.py
     pos = np.random.rand(num_sensors, 2)
     # Create graph based on distance threshold
-    threshold = 0.25
+    threshold = 0.8 # Ultra-high density to guarantee redundancy
     adj_matrix = np.zeros((num_sensors, num_sensors))
     
     G = nx.Graph()
@@ -112,11 +112,11 @@ def generate_traffic_data(
 
     # 3. Anomalies (Accidents)
     # Randomly pick time and location
-    num_anomalies = 10
+    num_anomalies = 20 # Increased from 10
     for _ in range(num_anomalies):
-        t_start = np.random.randint(0, total_steps - 12) # At least 1 hour duration
+        t_start = np.random.randint(0, total_steps - 24) # At least 2 hour duration
         sensor_idx = np.random.randint(0, num_sensors)
-        duration = np.random.randint(6, 18) # 30 to 90 mins
+        duration = np.random.randint(12, 36) # 1 to 3 hours
         
         # Traffic blockage spreads to neighbors
         neighbors = np.where(adj_matrix[sensor_idx] > 0)[0]
@@ -124,7 +124,8 @@ def generate_traffic_data(
         
         for t in range(t_start, t_start + duration):
             for s in affected_sensors:
-                drop = 40 if s == sensor_idx else 20
+                # Severe congestion
+                drop = 55 if s == sensor_idx else 40
                 speed_data[t, s] = max(5, speed_data[t, s] - drop)
 
     # Save Speed Data

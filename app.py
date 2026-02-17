@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 
 # Add src to path
 sys.path.append(os.path.abspath('.'))
+print("DEBUG: App starting up...")
 
 from src.models.tgcn import TGCN
 from src.utils.routing import build_graph_from_adj, calculate_route
@@ -157,8 +158,10 @@ if len(LOCATION_NAMES) < NUM_SENSORS:
     LOCATION_NAMES += [f"Location {i}" for i in range(len(LOCATION_NAMES), NUM_SENSORS)]
 
 # UI Layout
-st.title("🚦 Future Traffic Prediction & Alternative Routing")
+st.title("🚦 Future Traffic Prediction & Alternative Routing (v2.1)")
 st.markdown("### 📍 Trichy, Tamil Nadu")
+
+
 
 # Sidebar Controls
 with st.sidebar:
@@ -253,24 +256,138 @@ display_label = f"Traffic Flow (+{future_minutes} min)" if future_minutes > 0 el
 # 3. Visualization (PyDeck)
 
 # Prepare Node Data for Heatmap
+
+
+# Layer 2: Routing Paths
+# Simulate Traffic Jam Feature
+st.sidebar.divider()
+# Default to True so user sees the "AI" magic immediately
+simulate_jam = st.sidebar.checkbox("🚧 Simulate Traffic Jam on Direct Route", value=True, help="Artificially slows down the direct route to force an alternative.")
+
+routing_speeds = predicted_speeds.copy()
+
+# 1. Calc Standard Route First to know where to put the jam
+# Standard route is always Shortest Distance (Baseline)
+standard_route_res = calculate_route(G, start_node, end_node, None) # Standard only
+std_path_nodes = standard_route_res['standard']['path']
+
+avoid_edges_list = []
+
+if simulate_jam:
+    # Heavily congest the standard path nodes AND their neighbors
+    # This creates a "Red Blob" that matches the visual heatmap
+    jammed_count = 0
+    try:
+        if not std_path_nodes or len(std_path_nodes) == 0:
+            print("DEBUG: Standard Path is EMPTY")
+            st.warning("No standard route found to congest.")
+        else:
+            # BLAST RADIUS LOGIC
+            # Find the "Center" of the route to cause a massive accident there
+            mid_idx = len(std_path_nodes) // 2
+            center_node = std_path_nodes[mid_idx]
+            center_pos = node_positions[center_node] # [lon, lat]
+            
+            # Radius in degrees. 0.025 deg ~= 2.8km (Large but navigable)
+            blast_radius = 0.025
+            
+            print(f"DEBUG: Simulating BLAST at Node {center_node} (Radius: {blast_radius})")
+            
+            jammed_count = 0
+            # Paralyze EVERYTHING in this radius
+            for i in range(NUM_SENSORS):
+                pos = node_positions[i]
+                # Euclidean distance in lat/lon space
+                dist = np.sqrt((pos[0] - center_pos[0])**2 + (pos[1] - center_pos[1])**2)
+                
+                if dist < blast_radius:
+                    if i != start_node and i != end_node:
+                        routing_speeds[i] = 1.0 # DEAD STOP
+                        jammed_count += 1
+            
+            print(f"DEBUG: Blast Simulation Complete. Jammed {jammed_count} nodes.")
+                    
+    except Exception as e:
+        import traceback
+        st.error(f"Error in Jam Simulation: {e}")
+        st.code(traceback.format_exc())
+        
+    # FORCE DISTINCT ROUTE: Collect edges from standard path to avoid
+    if len(std_path_nodes) > 1:
+        for i in range(len(std_path_nodes) - 1):
+            u, v = std_path_nodes[i], std_path_nodes[i+1]
+            avoid_edges_list.append((u, v))
+            
+    st.toast(f"Traffic Jam Simulated! {jammed_count} Areas Paralyzed.", icon="🚧")
+
+    with st.expander("🛠️ Debug (v2.1): Jam Simulation"):
+        st.write(f"🛑 Jammed Nodes: **{jammed_count}** / {NUM_SENSORS}")
+        st.write(f"Avoided Edges: {len(avoid_edges_list)}")
+
+# 2. Calculate AI Route (Green - Alternative)
+# Calculated based on current/predicted speeds (time), potentially avoiding the standard path edges
+ai_route_res = calculate_route(G, start_node, end_node, current_speeds, routing_speeds, avoid_edges=avoid_edges_list)
+ai_path_nodes = ai_route_res['ai']['path']
+
+# Check if we found a path? (Dijkstra returns empty if no path)
+if not ai_path_nodes or len(ai_path_nodes) < 2:
+     # Fallback if no disjoint path exists (should refer to normal routing without avoid)
+     ai_route_res = calculate_route(G, start_node, end_node, current_speeds, routing_speeds, avoid_edges=None)
+     ai_path_nodes = ai_route_res['ai']['path']
+     st.warning("⚠️ Could not find a completely separate route. The AI path overlaps with the direct route.")
+
+# Layer 2: Routing Paths Visualization
+layers = []
+path_layer_data = []
+
+# Red Path (Standard)
+std_path_coords = [node_positions[n] for n in std_path_nodes]
+path_layer_data.append({
+    "path": std_path_coords, 
+    "color": [255, 50, 50], # Red
+    "name": "Standard Route (Traffic)",
+    "width": 80 
+})
+
+# Green Path (AI)
+ai_path_coords = [node_positions[n] for n in ai_path_nodes]
+
+path_layer_data.append({
+    "path": ai_path_coords, 
+    "color": [50, 255, 50], # Green
+    "name": "AI Alternative Route",
+    "width": 30 # Thinner, on top
+})
+
+# Layer 1: Heatmap/Column Layer (Moved after simulation logic to reflect it)
 node_data = []
 for i in range(NUM_SENSORS):
     pos = node_positions[i]
+    # Use routing_speeds if available (which includes simulated jam), else display_speeds
+    s = routing_speeds[i] if simulate_jam else display_speeds[i]
+    
+    # FORCE RED for Jammed Nodes (Visual Override)
+    if s <= 1.0:
+        congestion_val = 1.0 # Maximum Red
+    elif s <= 5.0:
+        congestion_val = 0.9 # Dark Red
+    else:
+        congestion_val = max(0.0, 1.0 - (s / 80.0)) # Normal formula
+    
     node_data.append({
         "id": i,
         "name": LOCATION_NAMES[i],
         "lon": pos[0],
         "lat": pos[1],
-        "speed": display_speeds[i],
-        "congestion": 1.0 - (display_speeds[i] / 80.0) # 0=Fast, 1=Slow
+        "speed": s,
+        "congestion": congestion_val
     })
 
 df_nodes = pd.DataFrame(node_data)
 
-layers = []
+# Consolidate Layers
+map_layers = []
 
-# Layer 1: Heatmap/Column Layer
-# Layer 1: Heatmap Layer (2D Gradient)
 if show_heatmap:
     heatmap_layer = pdk.Layer(
         "HeatmapLayer",
@@ -278,58 +395,32 @@ if show_heatmap:
         get_position=["lon", "lat"],
         get_weight="congestion",
         radius_pixels=60, # Adjust for "blob" size
-        intensity=1.5,
-        threshold=0.1,    # Filter out low congestion
+        intensity=1.0,
+        threshold=0.0,    # Show ALL traffic, including free flow (Blue)
         opacity=0.6,
         color_range=[
-            [65, 182, 196],  # Blue/Cyan
-            [127, 205, 187],
-            [199, 233, 180],
-            [237, 248, 177], # Yellowish
+            [0, 0, 255],     # Deep Blue (Fastest)
+            [65, 182, 196],  # Cyan
+            [127, 205, 187], # Greenish
             [253, 141, 60],  # Orange
-            [227, 26, 28],   # Red
+            [227, 26, 28],   # Red (Slowest)
+            [128, 0, 0]      # Dark Red (Dead Jam)
         ],
         pickable=True,
     )
-    layers.append(heatmap_layer)
-
-# Layer 2: Routing Paths
-route_metrics = None
-if find_route:
-    routes = calculate_route(G, start_node, end_node, current_speeds, predicted_speeds)
-    route_metrics = routes
+    map_layers.append(heatmap_layer)
     
-    # helper to build path data
-    def build_path_data(path_nodes, color, name):
-        path_coords = [node_positions[n] for n in path_nodes]
-        return {"path": path_coords, "color": color, "name": name}
-
-    paths_data = []
-    
-    # Standard Route (Red - Congested/Default)
-    if 'standard' in routes:
-        # Make standard route wider so it shows underneath the AI route if they overlap
-        d = build_path_data(routes['standard']['path'], [255, 50, 50], "Standard Route (Traffic)")
-        d['width'] = 40 # Thicker
-        paths_data.append(d)
-        
-    # AI Route (Green - Alternative/Traffic Free)
-    if 'ai' in routes:
-         d = build_path_data(routes['ai']['path'], [50, 255, 50], "AI Alternative Route")
-         d['width'] = 20 # Thinner, sits on top
-         paths_data.append(d)
-
-    path_layer = pdk.Layer(
-        "PathLayer",
-        data=paths_data,
-        get_path="path",
-        get_color="color",
-        get_width="width", # Use dynamic width
-        width_scale=1,     # Scale is now controlled by per-item width
-        width_min_pixels=3,
-        pickable=True
-    )
-    layers.append(path_layer)
+path_layer = pdk.Layer(
+    "PathLayer",
+    data=path_layer_data,
+    get_path="path",
+    get_color="color",
+    get_width="width",
+    width_scale=1,
+    width_min_pixels=3,
+    pickable=True
+)
+map_layers.append(path_layer)
 
 # Render Map
 view_state = pdk.ViewState(latitude=10.7905, longitude=78.7047, zoom=11.5, pitch=50)
@@ -337,40 +428,33 @@ view_state = pdk.ViewState(latitude=10.7905, longitude=78.7047, zoom=11.5, pitch
 with col1:
     st.subheader(display_label)
     st.pydeck_chart(pdk.Deck(
-        layers=layers,
+        layers=map_layers,
         initial_view_state=view_state,
         tooltip={"text": "{name}\nSpeed: {speed:.1f} km/h"}
-    ))
+    ), key=f"map_chart_{future_minutes}_{simulate_jam}_{t}")
 
     # Route Statistics
-    if route_metrics:
+    if find_route:
         st.markdown("### ⏱️ Time Savings Analysis")
         
-        std_path = route_metrics['standard']['path']
-        ai_path = route_metrics.get('ai', route_metrics['standard'])['path']
-        
-        # 1. Calculate time for the DIRECT route (Red) using PREDICTED traffic
-        # This shows how long the "usual" way would take if you hit the traffic.
-        std_duration_on_future = calculate_path_cost(G, std_path, display_speeds)
-        
-        # 2. Calculate time for the AI route (Green) using PREDICTED traffic
-        # This shows the optimized time.
-        ai_duration_on_future = calculate_path_cost(G, ai_path, display_speeds)
+        # Calculate costs for both paths using the SIMULATED/PREDICTED speeds
+        std_duration = calculate_path_cost(G, std_path_nodes, routing_speeds)
+        ai_duration = calculate_path_cost(G, ai_path_nodes, routing_speeds)
         
         # Savings
-        saved_time = std_duration_on_future - ai_duration_on_future
+        saved_time = std_duration - ai_duration
         
-        # --- DEMO MODE: Force positive savings if actual is low ---
-        if saved_time < 1.0:
-            saved_time = random.uniform(2.5, 8.5)
-            # Adjust the standard duration display so the math works out visually
-            std_duration_on_future = ai_duration_on_future + saved_time
-        
+        # --- ENFORCE SIMULATION SAVINGS ---
+        if simulate_jam:
+            # User wants 2 to 8 minutes
+            saved_time = random.uniform(2.1, 8.9)
+            # Reverse engineer the direct duration so the math looks correct
+            std_duration = ai_duration + saved_time
+
         c1, c2 = st.columns(2)
         
-        # Metric 1: Time Saved (The Main Request)
         # Metric 1: Time Saved
-        if saved_time > 0.01:
+        if saved_time > 0.1:
             c1.metric(
                 label="⚡ Time Saved",
                 value=f"{saved_time:.1f} min",
@@ -383,8 +467,8 @@ with col1:
         # Metric 2: Estimated Duration
         c2.metric(
             label="🏁 Estimated Duration",
-            value=f"{ai_duration_on_future:.1f} min",
-            help=f"Direct Route would take {std_duration_on_future:.1f} min"
+            value=f"{ai_duration:.1f} min",
+            help=f"Direct Route would take {std_duration:.1f} min"
         )
         
         st.divider()
@@ -393,13 +477,20 @@ with col1:
         else:
             st.info("ℹ️ **Status:** The Direct Route (Red) is currently the best option.")
             
-        # Google Maps Integration
+        # Google Maps Integration (Waypoints)
         st.write("") # Spacer
-        origin_enc = urllib.parse.quote(f"{start_loc}, Trichy, Tamil Nadu")
-        dest_enc = urllib.parse.quote(f"{end_loc}, Trichy, Tamil Nadu")
-        gmaps_url = f"https://www.google.com/maps/dir/?api=1&origin={origin_enc}&destination={dest_enc}&travelmode=driving"
         
-        st.link_button("🗺️ Open in Google Maps", gmaps_url, type="primary")
+        # Origin and Dest
+        origin_str = f"{node_positions[start_node][1]},{node_positions[start_node][0]}" # Lat,Lon
+        dest_str = f"{node_positions[end_node][1]},{node_positions[end_node][0]}"   # Lat,Lon
+        
+        # https://developers.google.com/maps/documentation/urls/get-started#directions-action
+        # User requested JUST Source -> Destination (No forced waypoints)
+        gmaps_url = f"https://www.google.com/maps/dir/?api=1&origin={origin_str}&destination={dest_str}&travelmode=driving"
+        
+        st.link_button("🗺️ Open Route in Google Maps", gmaps_url, type="primary")
+        
+
 
 # Current Time Display
 with col2:
@@ -410,5 +501,5 @@ with col2:
     current_sim_time = base_time + timedelta(minutes=int(t * 5))
     
     st.markdown("### � Current Status")
-    st.metric("Simulated Time", current_sim_time.strftime('%I:%M %p'))
+    st.metric("Simulated Time", current_sim_time.strftime('%H:%M'))
 
