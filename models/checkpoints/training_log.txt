@@ -1,0 +1,10 @@
+Training started at Tue Feb 17 12:54:11 2026
+Device: cuda
+GPU Name: NVIDIA GeForce RTX 4060 Laptop GPU
+CUDA Version: 12.4
+------------------------------
+Epoch 1/5 - Loss: 0.5617 - Time: 67.1s
+Epoch 2/5 - Loss: 0.1770 - Time: 141.5s
+Epoch 3/5 - Loss: 0.1425 - Time: 212.1s
+Epoch 4/5 - Loss: 0.1261 - Time: 271.4s
+Epoch 5/5 - Loss: 0.1139 - Time: 330.2s

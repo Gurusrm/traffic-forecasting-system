@@ -1,0 +1,41 @@
+project:
+  name: "traffic-forecasting-system"
+  version: "1.0.0"
+  description: "GPU-Accelerated GraphCast-Style Spatiotemporal Traffic Forecasting System"
+
+data:
+  dataset_name: "METR-LA"
+  raw_data_path: "data/raw"
+  processed_data_path: "data/processed"
+  graph_path: "data/graphs"
+  input_window: 12 # 60 minutes (12 * 5min)
+  output_window: 12 # 60 minutes (12 * 5min)
+  train_ratio: 0.7
+  val_ratio: 0.1
+  test_ratio: 0.2
+  batch_size: 64
+  num_workers: 4
+
+model:
+  name: "ST-GNN"
+  input_dim: 2 # speed, time_of_day
+  hidden_dim: 64
+  output_dim: 1 # predicted speed
+  num_layers: 2
+  dropout: 0.3
+  heads: 4 # for GAT
+
+training:
+  epochs: 300
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  patience: 50 # early stopping
+  grad_clip: 5.0
+  checkpoint_dir: "models/checkpoints"
+  log_dir: "models/logs"
+  gpu_id: 0
+
+inference:
+  model_path: "models/checkpoints/best_model.pth"
+  host: "0.0.0.0"
+  port: 8000
